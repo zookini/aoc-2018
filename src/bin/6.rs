@@ -68,7 +68,7 @@ fn distance(a: Point, b: Point) -> usize {
 
 fn p2(ps: &[Point]) -> usize {
     iproduct!(EXTENT, EXTENT)
-        .map(|(x, y)| ps.iter().map(|&p| distance((x, y), p)).sum::<usize>())
-        .filter(|&distance| distance < 10000)
+        .map(|a| ps.iter().map(|&b| distance(a, b)).sum())
+        .filter(|&distance: &usize| distance < 10000)
         .count()
 }

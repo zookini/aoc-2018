@@ -3,16 +3,13 @@ use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
 
 fn main() {
-    let input = include_str!("../../input/7.txt");
-    let graph = input.lines().map(&pair).into_group_map();
+    let graph = include_bytes!("../../input/7.txt")
+        .split(|&b| b == b'\n')
+        .map(|bs| (bs[5] as char, bs[36] as char))
+        .into_group_map();
 
     println!("{}", p1(&graph));
     println!("{}", p2(&graph));
-}
-
-fn pair(s: &str) -> (char, char) {
-    let bs = s.as_bytes();
-    (bs[5] as char, bs[36] as char)
 }
 
 fn p1(graph: &HashMap<char, Vec<char>>) -> String {
@@ -52,7 +49,7 @@ fn queue(dependencies: &HashMap<char, u32>) -> BinaryHeap<Reverse<char>> {
     dependencies
         .iter()
         .filter(|(_, &count)| count == 0)
-        .map(|(&c, _)| Reverse(c))
+        .map(|(&node, _)| Reverse(node))
         .collect()
 }
 
@@ -63,10 +60,8 @@ fn p2(graph: &HashMap<char, Vec<char>>) -> u32 {
     let mut queue = queue(&dependencies);
 
     loop {
-        let time = workers[0].time;
-
-        if time > elapsed {
-            elapsed = time;
+        if workers[0].time > elapsed {
+            elapsed = workers[0].time;
 
             if let Some(children) = workers[0].node.take().and_then(|n| graph.get(&n)) {
                 for child in children {

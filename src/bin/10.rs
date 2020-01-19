@@ -1,7 +1,7 @@
 use itertools::Itertools;
 
 fn main() {
-    let (mut positions, velocities): (Vec<(i32, _)>, Vec<_>) =
+    let (mut positions, velocities): (Vec<(i32, i32)>, Vec<(i32, i32)>) =
         regex::Regex::new(r"position=< *(.*?), *(.*?)> velocity=< *(.*?), *(.*?)>")
             .unwrap()
             .captures_iter(include_str!("../../input/10.txt"))
@@ -10,8 +10,8 @@ fn main() {
             .unzip();
 
     for i in 0.. {
-        if let Some((top, bottom)) = positions.iter().map(|p| p.1).minmax().into_option() {
-            if bottom - top <= 9 {
+        if let Some((top, bottom)) = positions.iter().map(|(_, y)| y).minmax().into_option() {
+            if bottom - top == 9 {
                 println!("{} seconds\n", i);
                 break;
             }

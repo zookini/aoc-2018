@@ -1,9 +1,8 @@
-use aoc::*;
 use itertools::enumerate;
 use std::collections::HashMap;
 
-fn main() -> Result<()> {
-    let mut input: Vec<_> = include_str!("../../input/4.txt").lines().collect();
+fn main() -> aoc::Result<()> {
+    let mut events: Vec<_> = include_str!("../../input/4.txt").lines().collect();
     let mut guard = 0;
     let mut timer = 0;
     let mut roster = HashMap::new();
@@ -13,18 +12,16 @@ fn main() -> Result<()> {
         r"(Guard #(?P<guard>\d+)|(?P<sleep>falls asleep)|(?P<wakes>wakes up))",
     ))?;
 
-    input.sort();
+    events.sort();
 
-    for line in input {
-        let cap = re.captures(line).unwrap();
-        let now = cap.name("minute").unwrap().as_str().parse()?;
+    for event in events {
+        let cap = re.captures(event).unwrap();
+        let now = cap["minute"].parse()?;
 
         if let Some(id) = cap.name("guard") {
             guard = id.as_str().parse()?;
         } else if cap.name("wakes").is_some() {
-            let timetable = roster.entry(guard).or_insert_with(|| vec![0; 60]);
-
-            for time in &mut timetable[timer..now] {
+            for time in &mut roster.entry(guard).or_insert_with(|| vec![0; 60])[timer..now] {
                 *time += 1;
             }
         }

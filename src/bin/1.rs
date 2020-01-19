@@ -1,7 +1,7 @@
 fn main() {
-    let changes: Vec<_> = include_str!("../../input/1.txt")
+    let changes: Vec<isize> = include_str!("../../input/1.txt")
         .lines()
-        .map(|s| s.parse::<isize>().unwrap())
+        .map(|s| s.parse().unwrap())
         .collect();
 
     println!("{}", p1(&changes));
@@ -21,9 +21,9 @@ fn p2(changes: &[isize]) -> isize {
         frequency += change;
 
         if seen.contains(&frequency) {
-            return frequency;
+            break;
         }
     }
 
-    unreachable!();
+    frequency
 }

@@ -25,7 +25,7 @@ fn p2(polymer: &[u8]) -> usize {
 
 fn react(polymer: &[u8]) -> Vec<u8> {
     polymer.iter().fold(vec![], |mut result, a| {
-        if let Some(_) = result.last().filter(|&b| a | 0x60 == b | 0x60 && a != b) {
+        if result.last().filter(|&b| a ^ b == 0x20).is_some() {
             result.pop();
         } else {
             result.push(*a);

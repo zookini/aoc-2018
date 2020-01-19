@@ -1,9 +1,7 @@
 use aoc::*;
 
 fn main() -> Result<()> {
-    let re = regex::Regex::new(r"#(\d+) @ (\d+),(\d+): (\d+)x(\d+)")?;
-
-    let claims = re
+    let claims = regex::Regex::new(r"#(\d+) @ (\d+),(\d+): (\d+)x(\d+)")?
         .captures_iter(include_str!("../../input/3.txt"))
         .map(|cap| {
             Ok(Claim {
@@ -52,10 +50,10 @@ fn p2(claims: &[Claim]) -> usize {
 
     claims
         .iter()
-        .find(|c| {
-            fabric[c.y..c.y + c.height]
+        .find(|claim| {
+            fabric[claim.y..claim.y + claim.height]
                 .iter()
-                .all(|row| row[c.x..c.x + c.width].iter().all(|&c| c == 1))
+                .all(|row| row[claim.x..claim.x + claim.width].iter().all(|&c| c == 1))
         })
         .unwrap()
         .id
