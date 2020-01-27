@@ -1,79 +1,236 @@
 use itertools::iproduct;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet};
 use std::iter;
 use std::mem;
 
-type Point = (i16, i16);
-
-const DIRECTIONS: &[Point] = &[(0, -1), (-1, 0), (1, 0), (0, 1)];
-
 fn main() {
-    let mut grid: Vec<Vec<u8>> = include_str!("../../input/15.txt")
-        .lines()
-        .map(|line| line.bytes().collect())
-        .collect();
+    let grid: Grid = Grid(
+        include_str!("../../input/15.txt")
+            .lines()
+            .map(|line| line.bytes().map(|b| Entity::parse(b)).collect())
+            .collect(),
+    );
 
-    tick(&mut grid);
-    tick(&mut grid);
-    tick(&mut grid);
+    println!("{}", p1(grid.clone()));
+    println!("{}", p2(&grid));
 }
 
-fn tick(grid: &mut Vec<Vec<u8>>) {
-    let mut moved = HashSet::new();
-
-    for (y, x) in iproduct!(0..grid.len(), 0..grid[0].len()) {
-        if !moved.contains(&(x as i16, y as i16)) && [b'G', b'E'].contains(&grid[y][x]) {
-            moved.insert(Entity::new(grid, (x as i16, y as i16)).tick(grid));
-            draw(grid);
-        }
-    }
+fn p1(mut grid: Grid) -> u32 {
+    let (round, hp) = simulate(&mut grid);
+    round * hp
 }
 
-fn draw(grid: &Vec<Vec<u8>>) {
-    for row in grid {
-        println!("{}", std::str::from_utf8(row).unwrap());
-    }
-}
+fn p2(grid: &Grid) -> u32 {
+    let initial = grid.units().filter(|unit| unit.race == Race::Elf).count();
 
-#[derive(Debug)]
-struct Entity {
-    class: u8,
-    position: Point,
-}
+    for strength in 4.. {
+        let mut g = grid.clone();
 
-impl Entity {
-    fn new(grid: &Vec<Vec<u8>>, position: Point) -> Entity {
-        Entity {
-            class: grid[position.1 as usize][position.0 as usize],
-            position,
-        }
-    }
-
-    fn tick(&mut self, grid: &mut Vec<Vec<u8>>) -> Point {
-        let mut queue: VecDeque<Point> = iter::once(self.position).collect();
-        let mut trails: HashMap<Point, Point> = HashMap::new();
-
-        while let Some(position) = queue.pop_front() {
-            for dir in DIRECTIONS {
-                let target = Entity::new(grid, (position.0 + dir.0, position.1 + dir.1));
-
-                if [b'G', b'E'].contains(&target.class) && target.class != self.class {
-                    return iter::successors(Some(&position), |p| trails.get(p))
-                        .filter(|&&position| position != self.position)
-                        .last()
-                        .map(|&go| {
-                            grid[self.position.1 as usize][self.position.0 as usize] =
-                                mem::replace(&mut grid[go.1 as usize][go.0 as usize], self.class);
-                            go
-                        })
-                        .unwrap_or(position);
-                } else if target.class == b'.' && !trails.contains_key(&target.position) {
-                    trails.entry(target.position).or_insert(position);
-                    queue.push_back(target.position);
+        for entity in g.0.iter_mut().flatten() {
+            if let Entity::Unit(unit) = entity {
+                if unit.race == Race::Elf {
+                    unit.strength = strength;
                 }
             }
         }
 
-        self.position
+        let (round, hp) = simulate(&mut g);
+
+        if g.units().filter(|unit| unit.race == Race::Elf).count() == initial {
+            return round * hp;
+        }
     }
+
+    unreachable!()
+}
+
+fn simulate(grid: &mut Grid) -> (u32, u32) {
+    for round in 0.. {
+        if let (complete, Some(hp)) = grid.tick() {
+            return (round + complete as u32, hp);
+        }
+    }
+
+    unreachable!()
+}
+
+#[derive(Clone, Debug)]
+struct Grid(Vec<Vec<Entity>>);
+
+impl Grid {
+    fn tick(&mut self) -> (bool, Option<u32>) {
+        let mut moved = HashSet::new();
+
+        for (y, x) in iproduct!(0..self.0.len() as i16, 0..self.0[0].len() as i16) {
+            if let (Entity::Unit(unit), false) = (self[(x, y)], moved.contains(&(x, y))) {
+                if let Some(hp) = self.victory() {
+                    return (false, Some(hp));
+                }
+
+                moved.insert(unit.tick(self, (x, y)));
+            }
+        }
+
+        (true, self.victory())
+    }
+
+    fn victory(&self) -> Option<u32> {
+        match self
+            .units()
+            .fold((0u32, 0u32), |(elves, goblins), unit| match unit.race {
+                Race::Elf => (elves + unit.hp as u32, goblins),
+                Race::Goblin => (elves, goblins + unit.hp as u32),
+            }) {
+            (elves, 0) => Some(elves),
+            (0, goblins) => Some(goblins),
+            _ => None,
+        }
+    }
+
+    fn units(&self) -> impl Iterator<Item = &Unit> {
+        self.0.iter().flatten().filter_map(|entity| entity.unit())
+    }
+}
+
+impl std::ops::Index<Point> for Grid {
+    type Output = Entity;
+
+    fn index(&self, point: Point) -> &Self::Output {
+        &self.0[point.1 as usize][point.0 as usize]
+    }
+}
+
+impl std::ops::IndexMut<Point> for Grid {
+    fn index_mut(&mut self, point: Point) -> &mut Self::Output {
+        &mut self.0[point.1 as usize][point.0 as usize]
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+enum Entity {
+    Wall,
+    Space,
+    Unit(Unit),
+}
+
+impl Entity {
+    fn parse(b: u8) -> Self {
+        match b {
+            b'#' => Self::Wall,
+            b'.' => Self::Space,
+            b'E' => Self::Unit(Unit::new(Race::Elf, 3)),
+            b'G' => Self::Unit(Unit::new(Race::Goblin, 3)),
+            _ => unreachable!(),
+        }
+    }
+
+    fn unit(&self) -> Option<&Unit> {
+        match self {
+            Entity::Unit(unit) => Some(unit),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+struct Unit {
+    race: Race,
+    strength: u8,
+    hp: u8,
+}
+
+impl Unit {
+    fn new(race: Race, strength: u8) -> Unit {
+        Unit {
+            race,
+            strength,
+            hp: 200,
+        }
+    }
+
+    fn tick(&self, grid: &mut Grid, start: Point) -> Point {
+        if self.attack(grid, start) {
+            start
+        } else {
+            let moved = self.step(grid, start);
+            self.attack(grid, moved);
+            moved
+        }
+    }
+
+    fn step(&self, grid: &mut Grid, start: Point) -> Point {
+        let mut queue = vec![start];
+        let mut queue2 = vec![];
+        let mut trails: HashMap<_, _> = HashMap::new();
+        let mut enemies = vec![];
+
+        while !queue.is_empty() {
+            while let Some(position) = queue.pop() {
+                for destination in neighbours(position) {
+                    if let Entity::Unit(unit) = grid[destination] {
+                        if self.race != unit.race {
+                            enemies.push(position);
+                        }
+                    } else if let Entity::Space = grid[destination] {
+                        if !trails.contains_key(&destination) {
+                            queue2.push(destination);
+                        }
+
+                        trails.entry(destination).or_insert(position);
+                    }
+                }
+            }
+
+            if enemies.is_empty() {
+                mem::swap(&mut queue, &mut queue2);
+                queue.reverse();
+            } else {
+                let target = enemies.iter().min_by_key(|(x, y)| (y, x));
+
+                let to = *iter::successors(target, |p| trails.get(p))
+                    .filter(|&&point| point != start)
+                    .last()
+                    .unwrap();
+
+                grid[start] = mem::replace(&mut grid[to], Entity::Unit(*self));
+
+                return to;
+            }
+        }
+
+        start
+    }
+
+    fn attack(&self, grid: &mut Grid, position: Point) -> bool {
+        if let Some(target) = neighbours(position)
+            .filter(|&p| grid[p].unit().filter(|u| u.race != self.race).is_some())
+            .min_by_key(|&p| grid[p].unit().map(|u| u.hp))
+        {
+            if let Entity::Unit(victim) = &mut grid[target] {
+                victim.hp = victim.hp.saturating_sub(self.strength);
+
+                if victim.hp == 0 {
+                    grid[target] = Entity::Space;
+                }
+
+                return true;
+            }
+        }
+
+        false
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+enum Race {
+    Elf,
+    Goblin,
+}
+
+type Point = (i16, i16);
+
+fn neighbours(p: Point) -> impl Iterator<Item = Point> {
+    [(0, -1), (-1, 0), (1, 0), (0, 1)]
+        .iter()
+        .map(move |d| (p.0 + d.0, p.1 + d.1))
 }
